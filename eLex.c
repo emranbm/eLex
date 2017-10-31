@@ -125,7 +125,7 @@ void start ()
 
 void finishExpression(char* err){
     if (err != NULL)
-        printf("ERR: %s\n", err);
+        printf("Error at line %d: %s => %c\n", lineno, err, lookahead);
     while (lookahead != ';')
         lookahead = lexan();
     parse();
