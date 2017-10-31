@@ -31,6 +31,11 @@ struct StackItem {
   int tval;
 };
 
+struct StackTrace {
+    char* description;
+    struct StackTrace* next;
+};
+
 extern struct entry symtable[];  /* symbol table  */
 void emit (int t, int tval);  /*  generates output  */
 void error(char* m);  /* generates all error messages  */
@@ -39,7 +44,7 @@ void stack1Push(int t, int tval); /* Pushes to the stack 1 */
 struct StackItem stack1Pop(); /* Pops from the stack 1 */
 void stack2Push(int t, int tval); /* Pushes to the stack 2 */
 struct StackItem stack2Pop(); /* Pops from the stack 2 */
-void calculateStack(); /* Calculates the stack contents */
+char* calculateStack(); /* Calculates the stack contents */
 int stack1Size(); /* The current size of the stack 1 */
 int stack2Size(); /* The current size of the stack 2 */
 
@@ -98,8 +103,13 @@ int lexan (){  /*  lexical analyzer  */
 
 int lookahead;
 
-void match(int);
-void start(), list(), expr(), moreterms(), term(), morefactors(), factor();
+char* match(int);
+void start(), list();
+char* expr();
+char* moreterms();
+char* term();
+char* morefactors();
+char* factor();
 
 void parse()  /*  parses and translates expression list  */
 {
@@ -113,92 +123,160 @@ void start ()
   list(); match(DONE);
 }
 
+void finishExpression(char* err){
+    if (err != NULL)
+        printf("ERR: %s\n", err);
+    while (lookahead != ';')
+        lookahead = lexan();
+    parse();
+}
+
 void list()
 {
   if (lookahead == '(' || lookahead == ID || lookahead == NUM) {
-    expr(); calculateStack(); match(';'); list();
+    char* err = expr();
+    if (err == NULL) {
+        err = calculateStack();
+        if (err == NULL){
+            err = match(';');
+            if (err == NULL) {
+                list();
+            } else {
+                finishExpression(err);
+            }
+        } else {
+            finishExpression(err);
+        }
+    } else {
+        finishExpression(err);
+    }
   }
   else {
     /* Empty */
+    finishExpression(NULL);
   }
 }
 
-void expr ()
+char* expr ()
 {
+  char* err;
   if (lookahead == ID){
     emit(lookahead, tokenval); match(ID);
     if (lookahead == '=') {
-        match('='); term(); moreterms(); emit('=', tokenval);
+        err = match('='); if (err != NULL) return err;
+        err = term(); if (err != NULL) return err;
+        err = moreterms(); if (err != NULL) return err;
+        emit('=', tokenval);
     } else
-        moreterms();
-  } else
-    term(); moreterms();
+        err = moreterms(); if (err != NULL) return err;
+  } else{
+    err = term(); if (err != NULL) return err;
+    err = moreterms(); if (err != NULL) return err;
+  }
+  
+  return NULL;
 }
 
-void moreterms()
+char* moreterms()
 {
+  char* err;
   if (lookahead == '+') {
-    match('+'); term(); emit('+', tokenval); moreterms();
+    err = match('+'); if (err != NULL) return err;
+    err = term(); if (err != NULL) return err;
+    emit('+', tokenval);
+    err = moreterms(); if (err != NULL) return err;
   }
   else if (lookahead == '-') {
-    match('-'); term(); emit('-', tokenval); moreterms();
+    err = match('-'); if (err != NULL) return err;
+    err = term(); if (err != NULL) return err;
+    emit('-', tokenval);
+    err = moreterms(); if (err != NULL) return err;
   }
   else {
     /* Empty */
   }
+  
+  return NULL;
 }
 
-void term ()
+char* term ()
 {
   /* Just one production for term, so we don't need to check lookahead */
-  factor(); morefactors();
+  char* err;
+  err = factor(); if (err != NULL) return err;
+  err = morefactors(); if (err != NULL) return err;
+  
+  return NULL;
 }
 
-void morefactors ()
+char* morefactors ()
 {
+  char* err;
   if (lookahead == '*') {
-    match('*'); factor(); emit('*', tokenval); morefactors();
+    err = match('*'); if (err != NULL) return err;
+    err = factor(); if (err != NULL) return err;
+    emit('*', tokenval);
+    err = morefactors(); if (err != NULL) return err;
   }
   else if (lookahead == '/') {
-    match('/'); factor(); emit('/', tokenval); morefactors();
+    err = match('/'); if (err != NULL) return err;
+    err = factor(); if (err != NULL) return err;
+    emit('/', tokenval);
+    err = morefactors(); if (err != NULL) return err;
   }
   else if (lookahead == DIV) {
-    match(DIV); factor(); emit(DIV, tokenval); morefactors();
+    err = match(DIV); if (err != NULL) return err;
+    err = factor(); if (err != NULL) return err;
+    emit(DIV, tokenval);
+    err = morefactors(); if (err != NULL) return err;
   }
   else if (lookahead == MOD) {
-    match(MOD); factor(); emit(MOD, tokenval); morefactors();
+    err = match(MOD); if (err != NULL) return err;
+    err = factor(); if (err != NULL) return err;
+    emit(MOD, tokenval);
+    err = morefactors(); if (err != NULL) return err;
   }
   else {
     /* Empty */
   }
+  
+  return NULL;
 }
 
-void factor ()
+char* factor ()
 {
+  char* err;
   if (lookahead == '(') {
-    match('('); expr(); match(')');
+    err = match('('); if (err != NULL) return err;
+    err = expr(); if (err != NULL) return err;
+    err = match(')'); if (err != NULL) return err;
   }
   else if (lookahead == ID) {
     int id_lexeme = tokenval;
-    match(ID);
+    err = match(ID); if (err != NULL) return err;
     emit(ID, id_lexeme);
   }
   else if (lookahead == NUM) {
     int num_value = tokenval;
-    match(NUM);
+    err = match(NUM); if (err != NULL) return err;
     emit(NUM, num_value);
   }
   else
-    error("syntax error in factor");
+    return "syntax error in factor";
+    
+  return NULL;
 }
 
-void match(int t)
+char* match(int t)
 {
+  char* err;
   if (lookahead == t)
     lookahead = lexan();
   else{
-    error ("syntax error in match");
+    return "syntax error in match";
   }
+  
+  return NULL;
 }
 
 //-----------------------------------------------------
@@ -290,7 +368,7 @@ void init()  /*  loads keywords into symtable  */
 void error(char* m)  /* generates all error messages  */
 {
   fprintf(stderr, "line %d: %s\n", lineno, m);
-  exit(EXIT_FAILURE);  /*  unsuccessful termination  */
+  //exit(EXIT_FAILURE);  /*  unsuccessful termination  */
 }
 
 
@@ -395,11 +473,12 @@ void printStack1(){
 }
 
 int aaa = 1;
-void calculateStack(){
+char* calculateStack(){
     struct StackItem item = stack1Pop();
     int lastOperator = NONE;
     int hasLastNum = 0; // as boolean
     int lastNum;
+    char* err;
     
     while (item.t != NONE){
         switch (item.t){
@@ -436,7 +515,7 @@ void calculateStack(){
                             break;
                         default:
                             printStack1();
-                            error("Invalid operation");
+                            return "Invalid operation";
                     }
                     stack1Push(NUM, result);
                     
@@ -454,7 +533,7 @@ void calculateStack(){
                         // put last num to symtable
                         symtable[item.tval].value = lastNum;
                     } else {
-                        error("Nothing to asign to variable");
+                        return "Nothing to asign to variable";
                     }
                 } else {
                     // add value of id to the stack1
@@ -479,7 +558,12 @@ void calculateStack(){
     item = stack2Pop();
     while(item.t != NONE)
         item = stack2Pop();
+        
+    return NULL;
 }
+
+
+
 
 
 
